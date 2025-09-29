@@ -4,3 +4,4 @@ from .havoc import HavocParser
 from .parsertype import ParserType
 from .outflankc2 import OutflankC2JsonParser
 from .mythic import MythicParser
+from .recon_ad_parser import ReconAdParser

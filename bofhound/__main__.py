@@ -6,7 +6,7 @@ import glob
 from syncer import sync
 
 from bofhound.parsers import LdapSearchBofParser, Brc4LdapSentinelParser, HavocParser, \
-    ParserType, OutflankC2JsonParser, MythicParser
+    ParserType, OutflankC2JsonParser, MythicParser, ReconAdParser
 from bofhound.writer import BloodHoundWriter
 from bofhound.uploader import BloodHoundUploader
 from bofhound.ad import ADDS
@@ -88,7 +88,10 @@ def main(
             sync(parser.connect(mythic_server, mythic_token))
             cs_logs = sync(parser.collect_callbacks())
 
-        
+        case ParserType.RECONAD:
+            logger.debug("Using ReconAD parser")
+            parser = ReconAdParser
+
         case _:
             raise ValueError(f"Unknown parser type: {parser}")
 

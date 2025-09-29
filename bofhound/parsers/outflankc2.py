@@ -5,15 +5,16 @@ import json
 from bofhound.logger import logger
 from bofhound.parsers.generic_parser import GenericParser
 from bofhound.parsers import LdapSearchBofParser
+from bofhound.parsers.recon_ad_parser import ReconAdParser
 
 
 #
-# Parses ldapsearch BOF objects from Outflank C2 JSON logfiles
-#   Assumes that the BOF was registered as a command in OC2 named 'ldapserach'
+# Parses ldapsearch and ReconAD BOF objects from Outflank C2 JSON logfiles
+#   Supports both 'ldapsearch' and 'reconad' BOF commands registered in OC2
 #
 
 class OutflankC2JsonParser(LdapSearchBofParser):
-    BOFNAME =  'ldapsearch'
+    SUPPORTED_BOFS = ['ldapsearch', 'reconad', 'reconad-computers', 'reconad-users', 'reconad-groups']
     
 
     @staticmethod
@@ -37,18 +38,48 @@ class OutflankC2JsonParser(LdapSearchBofParser):
 
         lines = contents.splitlines()
         for line in lines:
-            event_json = json.loads(line.split('UTC ', 1)[1])
+            # Handle different timestamp formats in Outflank C2 logs
+            if ' UTC ' in line:
+                json_part = line.split(' UTC ', 1)[1]
+            else:
+                # Fallback for lines that might not have UTC timestamp
+                continue
+
+            try:
+                event_json = json.loads(json_part)
+            except json.JSONDecodeError:
+                logger.debug(f'Failed to parse JSON from line: {line[:100]}...')
+                continue
 
             # we only care about task_resonse events
             if event_json['event_type'] != 'task_response':
                 continue
             
-            # within task_response events, we only care about tasks with the name 'ldapsearch'
-            if event_json['task']['name'].lower() !=  OutflankC2JsonParser.BOFNAME:
+            # within task_response events, we only care about supported BOF tasks
+            task_name = event_json['task']['name'].lower()
+
+            # Check if task name matches any supported BOF
+            is_supported = False
+            for supported_bof in OutflankC2JsonParser.SUPPORTED_BOFS:
+                if supported_bof in task_name:
+                    is_supported = True
+                    break
+
+            if not is_supported:
                 continue
             
-            # now we have a block of ldapsearch data we can parse through for objects
-            response_lines = event_json['task']['response'].splitlines()
+            # now we have a block of BOF data we can parse through for objects
+            response_data = event_json['task']['response']
+
+            # Route to appropriate parser based on BOF type
+            if 'reconad' in task_name:
+                # Use ReconAD parser for ReconAD BOF output
+                bof_objects = OutflankC2JsonParser._parse_reconad_response(response_data)
+                parsed_objects.extend(bof_objects)
+                continue
+
+            # Default to ldapsearch parsing for 'ldapsearch' BOF
+            response_lines = response_data.splitlines()
             for response_line in response_lines:
 
                 is_boundary_line = OutflankC2JsonParser._is_boundary_line(response_line)
@@ -107,6 +138,34 @@ class OutflankC2JsonParser(LdapSearchBofParser):
 
         return parsed_objects
 
+    @staticmethod
+    def _parse_reconad_response(response_data):
+        """
+        Parse ReconAD BOF output from Outflank C2 JSON response data.
+
+        This method extracts ReconAD formatted output and delegates to
+        ReconAdParser for actual parsing.
+        """
+        try:
+            # Clean C2 artifacts from response data (similar to ReconAdParser.prep_file)
+            cleaned_data = OutflankC2JsonParser._clean_c2_artifacts(response_data)
+            return ReconAdParser.parse_data(cleaned_data)
+        except Exception as e:
+            logger.debug(f'Error parsing ReconAD response: {str(e)}')
+            return []
+
+    @staticmethod
+    def _clean_c2_artifacts(data):
+        """
+        Clean C2 timestamp and output artifacts from ReconAD data.
+
+        This replicates ReconAdParser.prep_file logic for direct data processing.
+        """
+        # Remove common C2 timestamp and output artifacts
+        # Handle both UTC timestamps and "received output:" lines
+        data = re.sub(r'\n\n\d{2}\/\d{2} (\d{2}:){2}\d{2} UTC \[output\]\nreceived output:\n', '', data)
+        data = re.sub(r'\n\d{2}\/\d{2} (\d{2}:){2}\d{2} UTC \[output\]\n', '', data)
+        return data
 
     #
     # Get local groups, sessions, etc by feeding data to GenericParser class

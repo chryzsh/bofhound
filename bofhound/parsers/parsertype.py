@@ -6,3 +6,4 @@ class ParserType(Enum):
     HAVOC           = 'Havoc'
     OUTFLANKC2      = 'OutflankC2'
     MYTHIC          = 'Mythic'
+    RECONAD         = 'ReconAD'
