@@ -232,3 +232,90 @@ def test_import_gplink_parsing(ldapsearchbof_minimal_ou_gplink_results):
     assert len(ou.GPLinks) == 1
     assert ou.GPLinks[0][0] == 'CN={6AC1786C-016F-11D2-945F-00C04FB984F9},CN=POLICIES,CN=SYSTEM,DC=EZ,DC=LAB'.upper()
     assert ou.GPLinks[0][1] == '0'
+
+
+@pytest.fixture
+def raw_gmsa():
+    yield {
+        'objectclass': 'top, person, organizationalPerson, user, computer, msDS-GroupManagedServiceAccount',
+        'cn': 'gmsaTestAcct',
+        'distinguishedname': 'CN=gmsaTestAcct,CN=Managed Service Accounts,DC=test,DC=lab',
+        'objectguid': '4e7a928a-91cb-47a3-a404-27c5daa141d9',
+        'objectsid': 'S-1-5-21-3539700351-1165401899-3544196954-1119',
+        'samaccountname': 'gmsaTestAcct$',
+        'samaccounttype': '805306369',
+        'useraccountcontrol': '4096',
+        'primarygroupid': '515',
+        'dnshostname': 'gmsaTestAcct.test.lab',
+        'serviceprincipalname': 'HTTP/testhost.test.lab, HTTP/testhost',
+        'msds-groupmsamembership': 'AQAEAAAAAAAAAAAAAAAAABQAAAACACwAAQAAAAAAJAD/AQ8AAQUAAAAAAAUVAAAA0gKWSdIClknSApZJAAIAAA==',
+    }
+
+
+@pytest.fixture
+def raw_smsa():
+    yield {
+        'objectclass': 'top, person, organizationalPerson, user, computer, msDS-ManagedServiceAccount',
+        'cn': 'smsaTestAcct',
+        'distinguishedname': 'CN=smsaTestAcct,CN=Managed Service Accounts,DC=test,DC=lab',
+        'objectguid': '5e8b039b-82dc-48b4-b515-38c6ebb252ea',
+        'objectsid': 'S-1-5-21-3539700351-1165401899-3544196954-1120',
+        'samaccountname': 'smsaTestAcct$',
+        'samaccounttype': '805306369',
+        'useraccountcontrol': '4096',
+        'primarygroupid': '515',
+    }
+
+
+def test_gmsa_classified_as_user(raw_gmsa):
+    adds = ADDS()
+    adds.import_objects([raw_gmsa])
+
+    assert len(adds.users) == 1
+    assert len(adds.computers) == 0
+    assert adds.users[0]._entry_type == "User"
+
+
+def test_smsa_classified_as_user(raw_smsa):
+    adds = ADDS()
+    adds.import_objects([raw_smsa])
+
+    assert len(adds.users) == 1
+    assert len(adds.computers) == 0
+    assert adds.users[0]._entry_type == "User"
+
+
+def test_gmsa_not_classified_as_computer(raw_gmsa):
+    """gMSAs have samaccounttype 805306369 (same as computers) but should be users"""
+    adds = ADDS()
+    adds.import_objects([raw_gmsa])
+
+    assert len(adds.computers) == 0
+
+
+def test_gmsa_stores_raw_membership(raw_gmsa):
+    adds = ADDS()
+    adds.import_objects([raw_gmsa])
+
+    assert adds.users[0].RawGMSAMembership == raw_gmsa['msds-groupmsamembership']
+
+
+def test_gmsa_resolve_readers(raw_gmsa, raw_domain):
+    """Test that msds-groupmsamembership is parsed into ReadGMSAPassword edges"""
+    adds = ADDS()
+    adds.import_objects([raw_domain, raw_gmsa])
+    adds.resolve_gmsa_readers()
+
+    user = adds.users[0]
+    assert len(user.ReadGMSAPassword) == 1
+    assert user.ReadGMSAPassword[0]['ObjectIdentifier'] == 'S-1-5-21-1234567890-1234567890-1234567890-512'
+
+
+def test_gmsa_to_json_includes_readgmsapassword(raw_gmsa):
+    adds = ADDS()
+    adds.import_objects([raw_gmsa])
+
+    user = adds.users[0]
+    json_output = user.to_json('Member')
+    assert 'ReadGMSAPassword' in json_output
+    assert isinstance(json_output['ReadGMSAPassword'], list)
