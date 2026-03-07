@@ -37,6 +37,8 @@ class BloodHoundUser(BloodHoundObject):
         self.HasSIDHistory = []
         self.IsACLProtected = False
         self.MemberOfDNs = []
+        self.RawGMSAMembership = None
+        self.ReadGMSAPassword = []
 
         if isinstance(object, dict):
             self.PrimaryGroupSid = self.get_primary_membership(object) # Returns none if not exist
@@ -121,6 +123,9 @@ class BloodHoundUser(BloodHoundObject):
                 if len(object.get('msds-allowedtodelegateto', [])) > 0:
                     self.Properties['allowedtodelegate'] = object.get('msds-allowedtodelegateto', [])
 
+            if 'msds-groupmsamembership' in object.keys():
+                self.RawGMSAMembership = object.get('msds-groupmsamembership')
+
             if 'ntsecuritydescriptor' in object.keys():
                 self.RawAces = object['ntsecuritydescriptor']
 
@@ -155,6 +160,7 @@ class BloodHoundUser(BloodHoundObject):
         user["SPNTargets"] = self.SPNTargets
         user["HasSIDHistory"] = self.HasSIDHistory
         user["IsACLProtected"] = self.IsACLProtected
+        user["ReadGMSAPassword"] = self.ReadGMSAPassword
 
         # TODO: RBCD
         # Process resource-based constrained delegation
