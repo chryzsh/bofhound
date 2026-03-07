@@ -137,7 +137,7 @@ def main(
     ad.import_objects(ldap_objects)
     broker.import_objects(results, ad.DOMAIN_MAP.values())
 
-    logger.info("Parsed %d Users", len(ad.users))
+    logger.info("Parsed %d Users (%d gMSAs, %d sMSAs)", len(ad.users), ad.num_gmsa, ad.num_smsa)
     logger.info("Parsed %d Groups", len(ad.groups))
     logger.info("Parsed %d Computers", len(ad.computers))
     logger.info("Parsed %d Domains", len(ad.domains))
