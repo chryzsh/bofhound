@@ -698,6 +698,16 @@ class ADDS():
                     ColorScheme.ou, ou.Properties['name'],
                     extra=OBJ_EXTRA_FMT
                 )
+            else:
+                container = self._resolve_object_container(user)
+                if container is not None:
+                    container.add_ou_member(user, "User")
+                    logger.debug(
+                        "Identified %s%s[/] as within Container %s",
+                        ColorScheme.user, user.Properties['name'],
+                        container.Properties['name'],
+                        extra=OBJ_EXTRA_FMT
+                    )
 
         for group in self.groups:
             ou = self._resolve_object_ou(group)
@@ -709,6 +719,16 @@ class ADDS():
                     ColorScheme.ou, ou.Properties['name'],
                     extra=OBJ_EXTRA_FMT
                 )
+            else:
+                container = self._resolve_object_container(group)
+                if container is not None:
+                    container.add_ou_member(group, "Group")
+                    logger.debug(
+                        "Identified %s%s[/] as within Container %s",
+                        ColorScheme.group, group.Properties['name'],
+                        container.Properties['name'],
+                        extra=OBJ_EXTRA_FMT
+                    )
 
         for computer in self.computers:
             ou = self._resolve_object_ou(computer)
@@ -720,6 +740,16 @@ class ADDS():
                     ColorScheme.ou, ou.Properties['name'],
                     extra=OBJ_EXTRA_FMT
                 )
+            else:
+                container = self._resolve_object_container(computer)
+                if container is not None:
+                    container.add_ou_member(computer, "Computer")
+                    logger.debug(
+                        "Identified %s%s[/] as within Container %s",
+                        ColorScheme.computer, computer.Properties['name'],
+                        container.Properties['name'],
+                        extra=OBJ_EXTRA_FMT
+                    )
 
         for nested_ou in self.ous:
             ou = self._resolve_nested_ou(nested_ou)
@@ -1125,6 +1155,21 @@ class ADDS():
             for ou in self.ous:
                 if ou.Properties["distinguishedname"] == target_ou:
                     return ou
+        return None
+
+
+    def _resolve_object_container(self, object):
+        """Resolve an object's parent container from its DN."""
+        dn = object.Properties.get("distinguishedname", "")
+        tokens = dn.split(',', 1)
+        if len(tokens) < 2:
+            return None
+        parent_dn = tokens[1]
+        if not parent_dn.startswith("CN="):
+            return None
+        for container in self.containers:
+            if container.Properties.get("distinguishedname", "") == parent_dn:
+                return container
         return None
 
 
