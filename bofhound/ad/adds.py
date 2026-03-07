@@ -64,6 +64,8 @@ class ADDS():
         self.trusts: list[BloodHoundDomainTrust] = []
         self.trustaccounts: list[BloodHoundUser] = []
         self.unknown_objects: list[dict] = []
+        self.num_gmsa = 0
+        self.num_smsa = 0
 
     def import_objects(self, objects):
         """Parse a list of dictionaries representing attributes of an AD object
@@ -139,6 +141,11 @@ class ADDS():
                 or object.get(ADDS.AT_MSDS_GROUPMSAMEMBERSHIP, '') != '':
                 bhObject = BloodHoundUser(object)
                 target_list = self.users
+                object_class_lower = object.get(ADDS.AT_OBJECTCLASS, '').lower()
+                if 'msds-groupmanagedserviceaccount' in object_class_lower:
+                    self.num_gmsa += 1
+                else:
+                    self.num_smsa += 1
 
             # Users
             elif accountType in [805306368]:
