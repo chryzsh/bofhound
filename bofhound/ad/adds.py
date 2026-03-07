@@ -132,9 +132,16 @@ class ADDS():
                 bhObject = BloodHoundGroup(object)
                 target_list = self.groups
 
+            # gMSA / sMSA - check objectclass before samaccounttype since
+            # gMSAs have samaccounttype 805306369 (same as computers)
+            elif 'msds-groupmanagedserviceaccount' in object.get(ADDS.AT_OBJECTCLASS, '').lower() \
+                or 'msds-managedserviceaccount' in object.get(ADDS.AT_OBJECTCLASS, '').lower() \
+                or object.get(ADDS.AT_MSDS_GROUPMSAMEMBERSHIP, '') != '':
+                bhObject = BloodHoundUser(object)
+                target_list = self.users
+
             # Users
-            elif object.get(ADDS.AT_MSDS_GROUPMSAMEMBERSHIP, b'') != b'' \
-                or accountType in [805306368]:
+            elif accountType in [805306368]:
                 bhObject = BloodHoundUser(object)
                 target_list = self.users
 
@@ -365,6 +372,10 @@ class ADDS():
             self.resolve_delegation_targets()
         logger.info("Resolved delegation relationships")
 
+        with console.status(" [bold] Resolving gMSA password readers", spinner="aesthetic"):
+            self.resolve_gmsa_readers()
+        logger.info("Resolved gMSA password readers")
+
         with console.status(" [bold] Resolving OU memberships", spinner="aesthetic"):
             self.resolve_ou_members()
         logger.info("Resolved OU memberships")
@@ -456,6 +467,39 @@ class ADDS():
             if len(delegatehosts) > 0:
                 object.Properties['allowedtodelegate'] = delegatehosts
                 object.AllowedToDelegate = resolved_delegation_list
+
+
+    def resolve_gmsa_readers(self):
+        for user in self.users:
+            if not user.RawGMSAMembership:
+                continue
+            try:
+                value = base64.b64decode(user.RawGMSAMembership)
+            except Exception:
+                logger.warning(f'Error base64 decoding msds-groupmsamembership on {user.Properties.get("name", "unknown")}')
+                continue
+            if not value:
+                continue
+            try:
+                sd = SecurityDescriptor(BytesIO(value))
+            except Exception:
+                logger.warning(f'Error parsing msds-groupmsamembership security descriptor on {user.Properties.get("name", "unknown")}')
+                continue
+            if sd.dacl is None:
+                continue
+            for ace_object in sd.dacl.aces:
+                sid = str(ace_object.acedata.sid)
+                if sid in ["S-1-3-0", "S-1-5-18", "S-1-5-10"]:
+                    continue
+                resolved_sid = BloodHoundObject.get_sid(sid, user.Properties.get("distinguishedname", ""))
+                principal_type = "Base"
+                if resolved_sid in self.SID_MAP:
+                    principal_type = self.SID_MAP[resolved_sid]._entry_type
+                user.ReadGMSAPassword.append({
+                    "ObjectIdentifier": resolved_sid,
+                    "ObjectType": principal_type
+                })
+                logger.debug(f"Resolved gMSA password reader {resolved_sid} ({principal_type}) for {user.Properties.get('name', 'unknown')}")
 
 
     def write_default_users(self):
