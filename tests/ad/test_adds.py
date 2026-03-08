@@ -301,21 +301,26 @@ def test_gmsa_stores_raw_membership(raw_gmsa):
 
 
 def test_gmsa_resolve_readers(raw_gmsa, raw_domain):
-    """Test that msds-groupmsamembership is parsed into ReadGMSAPassword edges"""
+    """Test that msds-groupmsamembership is parsed into ReadGMSAPassword ACEs"""
     adds = ADDS()
     adds.import_objects([raw_domain, raw_gmsa])
     adds.resolve_gmsa_readers()
 
     user = adds.users[0]
-    assert len(user.ReadGMSAPassword) == 1
-    assert user.ReadGMSAPassword[0]['ObjectIdentifier'] == 'S-1-5-21-1234567890-1234567890-1234567890-512'
+    gmsa_aces = [a for a in user.Aces if a['RightName'] == 'ReadGMSAPassword']
+    assert len(gmsa_aces) == 1
+    assert gmsa_aces[0]['PrincipalSID'] == 'S-1-5-21-1234567890-1234567890-1234567890-512'
+    assert gmsa_aces[0]['IsInherited'] == False
 
 
-def test_gmsa_to_json_includes_readgmsapassword(raw_gmsa):
+def test_gmsa_to_json_includes_readgmsapassword_aces(raw_gmsa, raw_domain):
+    """Test that ReadGMSAPassword appears in Aces array in JSON output"""
     adds = ADDS()
-    adds.import_objects([raw_gmsa])
+    adds.import_objects([raw_domain, raw_gmsa])
+    adds.resolve_gmsa_readers()
 
     user = adds.users[0]
     json_output = user.to_json('Member')
-    assert 'ReadGMSAPassword' in json_output
-    assert isinstance(json_output['ReadGMSAPassword'], list)
+    assert 'Aces' in json_output
+    gmsa_aces = [a for a in json_output['Aces'] if a['RightName'] == 'ReadGMSAPassword']
+    assert len(gmsa_aces) == 1

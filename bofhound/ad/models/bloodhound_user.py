@@ -160,7 +160,6 @@ class BloodHoundUser(BloodHoundObject):
         user["SPNTargets"] = self.SPNTargets
         user["HasSIDHistory"] = self.HasSIDHistory
         user["IsACLProtected"] = self.IsACLProtected
-        user["ReadGMSAPassword"] = self.ReadGMSAPassword
 
         # TODO: RBCD
         # Process resource-based constrained delegation
