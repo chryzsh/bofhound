@@ -502,9 +502,11 @@ class ADDS():
                 principal_type = "Base"
                 if resolved_sid in self.SID_MAP:
                     principal_type = self.SID_MAP[resolved_sid]._entry_type
-                user.ReadGMSAPassword.append({
-                    "ObjectIdentifier": resolved_sid,
-                    "ObjectType": principal_type
+                user.Aces.append({
+                    "PrincipalSID": resolved_sid,
+                    "PrincipalType": principal_type,
+                    "RightName": "ReadGMSAPassword",
+                    "IsInherited": False,
                 })
                 logger.debug(f"Resolved gMSA password reader {resolved_sid} ({principal_type}) for {user.Properties.get('name', 'unknown')}")
 
