@@ -14,7 +14,7 @@ from bofhound.parsers.recon_ad_parser import ReconAdParser
 #
 
 class OutflankC2JsonParser(LdapSearchBofParser):
-    SUPPORTED_BOFS = ['ldapsearch', 'reconad', 'reconad-computers', 'reconad-users', 'reconad-groups']
+    SUPPORTED_BOFS = ['ldapsearch', 'reconad', 'reconad-computers', 'reconad-users', 'reconad-groups', 'exec_bof']
     
 
     @staticmethod
